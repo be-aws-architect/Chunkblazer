@@ -41,6 +41,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -71,9 +72,18 @@ public class TaskCompletionAnimationOverlay extends Overlay
 	private static final long TOTAL_DURATION = PHASE_4_START + PHASE_4_DURATION;
 
 	// Fonts
-	private static final Font FONT_TASK_NAME = new Font("Verdana", Font.BOLD, 11);
-	private static final Font FONT_VALUES = new Font("Verdana", Font.PLAIN, 10);
+	private static final Font FONT_TASK_NAME = new Font("Verdana", Font.BOLD, 10);
+	private static final Font FONT_LABELS = FontManager.getRunescapeBoldFont();
+	private static final Font FONT_VALUES = FontManager.getRunescapeFont();
 	private static final Color COLOR_TEXT = new Color(255, 255, 255);
+	private static final Color COLOR_LABEL = new Color(255, 140, 0);
+	private static final String LABEL_REGION = "Region Assigned:";
+	private static final String LABEL_POINTS = "Points:";
+	private static final int LABEL_VALUE_GAP = 8;
+	private static final int BOX_TEXT_PADDING = 14; // keeps text off the box's stone border
+	private static final int TASK_NAME_Y_OFFSET = 26;
+	private static final int REGION_ROW_Y_OFFSET = 52;
+	private static final int POINTS_ROW_Y_OFFSET = 72;
 	private static final Color COLOR_SHADOW = new Color(0, 0, 0, 180);
 	private static final int SHADOW_OFFSET_X = 1;
 	private static final int SHADOW_OFFSET_Y = 1;
@@ -298,33 +308,43 @@ public class TaskCompletionAnimationOverlay extends Overlay
 		FontMetrics fm = graphics.getFontMetrics();
 		String displayName = truncateText(taskName, fm, boxWidth - 30);
 		int nameX = boxX + (boxWidth - fm.stringWidth(displayName)) / 2;
-		int nameY = boxY + 25; // Near the top
+		int nameY = boxY + TASK_NAME_Y_OFFSET;
 		// Draw shadow then text
 		graphics.setColor(COLOR_SHADOW);
 		graphics.drawString(displayName, nameX + SHADOW_OFFSET_X, nameY + SHADOW_OFFSET_Y);
 		graphics.setColor(COLOR_TEXT);
 		graphics.drawString(displayName, nameX, nameY);
 
-		// Region value - below and slightly left of "Region Assigned:" label
-		graphics.setFont(FONT_VALUES);
-		fm = graphics.getFontMetrics();
-		int regionX = boxX + 175; // Slightly left
-		int regionY = boxY + 58; // Moved down
-		// Draw shadow then text
-		graphics.setColor(COLOR_SHADOW);
-		graphics.drawString(regionName, regionX + SHADOW_OFFSET_X, regionY + SHADOW_OFFSET_Y);
-		graphics.setColor(COLOR_TEXT);
-		graphics.drawString(regionName, regionX, regionY);
-
-		// Points value - underneath region value
+		// "Label: value" rows. Labels are right-aligned so the colons line up, values
+		// left-aligned after them, and the two columns are centered as one block so
+		// the rows sit under the task name whatever the value lengths are.
+		FontMetrics labelFm = graphics.getFontMetrics(FONT_LABELS);
+		FontMetrics valueFm = graphics.getFontMetrics(FONT_VALUES);
+		int labelColWidth = Math.max(labelFm.stringWidth(LABEL_REGION), labelFm.stringWidth(LABEL_POINTS));
+		int maxValueWidth = boxWidth - BOX_TEXT_PADDING * 2 - labelColWidth - LABEL_VALUE_GAP;
+		String regionStr = truncateText(regionName, valueFm, maxValueWidth);
 		String pointsStr = String.valueOf(pointsAwarded);
-		int pointsX = boxX + 175; // Same X as region
-		int pointsY = boxY + 78; // Below region
-		// Draw shadow then text
+		int valueColWidth = Math.max(valueFm.stringWidth(regionStr), valueFm.stringWidth(pointsStr));
+
+		int blockX = boxX + (boxWidth - (labelColWidth + LABEL_VALUE_GAP + valueColWidth)) / 2;
+		int labelRight = blockX + labelColWidth;
+		int valueX = labelRight + LABEL_VALUE_GAP;
+
+		int regionY = boxY + REGION_ROW_Y_OFFSET;
+		int pointsY = boxY + POINTS_ROW_Y_OFFSET;
+		drawShadowed(graphics, LABEL_REGION, FONT_LABELS, COLOR_LABEL, labelRight - labelFm.stringWidth(LABEL_REGION), regionY);
+		drawShadowed(graphics, regionStr, FONT_VALUES, COLOR_TEXT, valueX, regionY);
+		drawShadowed(graphics, LABEL_POINTS, FONT_LABELS, COLOR_LABEL, labelRight - labelFm.stringWidth(LABEL_POINTS), pointsY);
+		drawShadowed(graphics, pointsStr, FONT_VALUES, COLOR_TEXT, valueX, pointsY);
+	}
+
+	private void drawShadowed(Graphics2D graphics, String text, Font font, Color color, int x, int y)
+	{
+		graphics.setFont(font);
 		graphics.setColor(COLOR_SHADOW);
-		graphics.drawString(pointsStr, pointsX + SHADOW_OFFSET_X, pointsY + SHADOW_OFFSET_Y);
-		graphics.setColor(COLOR_TEXT);
-		graphics.drawString(pointsStr, pointsX, pointsY);
+		graphics.drawString(text, x + SHADOW_OFFSET_X, y + SHADOW_OFFSET_Y);
+		graphics.setColor(color);
+		graphics.drawString(text, x, y);
 	}
 
 	private String truncateText(String text, FontMetrics fm, int maxWidth)
